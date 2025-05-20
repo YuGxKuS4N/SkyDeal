@@ -39,25 +39,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             chrome.scripting.executeScript({
               target: {tabId: flightTab.id},
               func: (from, to) => {
-                // 1. Refus automatique des cookies si popup présent
-                function refuseCookies() {
-                  // Recherche par aria-label, id, OU texte exact du bouton
-                  let refuseBtn = document.querySelector('[aria-label*="Refuser tout" i], [aria-label*="Tout refuser" i], [id*="reject" i], button[role="button"][jsname][data-mdc-dialog-action="reject"]');
-                  if (!refuseBtn) {
-                    // Recherche par texte exact (français et anglais)
-                    const xpath = "//button[normalize-space(text())='Tout refuser' or normalize-space(text())='Refuser tout' or normalize-space(text())='Reject all' or normalize-space(text())='Reject']";
-                    const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                    refuseBtn = result.singleNodeValue;
+                // 1. Refus automatique des cookies si popup présent, puis attendre la fermeture
+                function refuseCookiesAndWait(callback) {
+                  function tryRefuse() {
+                    let refuseBtn = document.querySelector('[aria-label*="Refuser tout" i], [aria-label*="Tout refuser" i], [id*="reject" i], button[role="button"][jsname][data-mdc-dialog-action="reject"]');
+                    if (!refuseBtn) {
+                      const xpath = "//button[normalize-space(text())='Tout refuser' or normalize-space(text())='Refuser tout' or normalize-space(text())='Reject all' or normalize-space(text())='Reject']";
+                      const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                      refuseBtn = result.singleNodeValue;
+                    }
+                    if (refuseBtn) {
+                      refuseBtn.click();
+                      waitForConsentGone();
+                    } else {
+                      // Si le bouton n'est pas encore là, réessayer
+                      setTimeout(tryRefuse, 300);
+                    }
                   }
-                  if (refuseBtn) {
-                    refuseBtn.click();
-                    setTimeout(() => {}, 500); // Laisse le temps à la popup de disparaître
+                  function waitForConsentGone() {
+                    let refuseBtn = document.querySelector('[aria-label*="Refuser tout" i], [aria-label*="Tout refuser" i], [id*="reject" i], button[role="button"][jsname][data-mdc-dialog-action="reject"]');
+                    if (!refuseBtn) {
+                      // La popup a disparu, on peut continuer
+                      setTimeout(callback, 200); // petit délai de sécurité
+                    } else {
+                      setTimeout(waitForConsentGone, 200);
+                    }
                   }
+                  tryRefuse();
                 }
-                refuseCookies();
-                // 2. Remplissage des champs (à ajuster selon l'UI Google Flights)
-                function fillInput(selector, value) {
-                  const el = document.querySelector(selector);
+                // 2. Remplissage des champs (adapté pour Google Flights)
+                function fillInputByAriaLabel(label, value) {
+                  const selectors = [
+                    `input[aria-label*="${label}" i]`,
+                    `input[aria-label*="${label.replace('D\'où', 'From')}" i]`,
+                    `input[aria-label*="${label.replace('Où allez-vous', 'To')}" i]`
+                  ];
+                  let el = null;
+                  for (const sel of selectors) {
+                    el = document.querySelector(sel);
+                    if (el) break;
+                  }
                   if (el) {
                     el.focus();
                     el.value = '';
@@ -66,11 +87,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                   }
                 }
-                fillInput('input[placeholder="Départ"]', from);
-                fillInput('input[placeholder="Destination"]', to);
-                // 3. Clic sur le bouton de recherche si besoin
-                const searchBtn = document.querySelector('button[aria-label*="Rechercher"]');
-                if (searchBtn) searchBtn.click();
+                // 3. Routine principale après consentement
+                function mainFill() {
+                  // Cible le champ de départ (bouton ou div, pas input)
+                  const fromSelector = '[aria-label*="D\'où partez-vous" i], [aria-label*="From" i]';
+                  const toSelector = '[aria-label*="Où allez-vous" i], [aria-label*="To" i]';
+                  function fillCity(selector, value, next) {
+                    const el = document.querySelector(selector);
+                    if (el) {
+                      el.click();
+                      setTimeout(() => {
+                        // Le champ de saisie réel apparaît après le clic
+                        const input = document.querySelector('input[aria-label][type="text"]:not([readonly])');
+                        if (input) {
+                          input.focus();
+                          input.value = value;
+                          input.dispatchEvent(new Event('input', { bubbles: true }));
+                          // Simule Entrée pour valider la ville
+                          const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true });
+                          input.dispatchEvent(enterEvent);
+                          setTimeout(next, 600);
+                        } else {
+                          setTimeout(() => fillCity(selector, value, next), 200);
+                        }
+                      }, 400);
+                    } else {
+                      setTimeout(() => fillCity(selector, value, next), 200);
+                    }
+                  }
+                  // Remplit le champ départ puis destination
+                  fillCity(fromSelector, from, () => {
+                    fillCity(toSelector, to, () => {
+                      // Optionnel : cliquer sur le bouton de recherche si besoin
+                      const searchBtn = document.querySelector('button[aria-label*="Rechercher"]');
+                      if (searchBtn) searchBtn.click();
+                    });
+                  });
+                }
+                // Lancer la séquence
+                refuseCookiesAndWait(mainFill);
               },
               args: [from, to]
             });
