@@ -26,13 +26,12 @@ chrome.windows.onCreated.addListener(function(window) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'openGoogleFlights') {
     const { from, to } = message;
-    // Ouvre Google Flights en navigation privée
     chrome.windows.create({
       url: 'https://www.google.com/flights?hl=fr',
       incognito: true,
       type: 'popup'
     }, (window) => {
-      // Injection du script après un délai pour laisser la page charger
+      if (!window || !window.id) return; // Sécurité : évite l'erreur si window est null
       setTimeout(() => {
         chrome.tabs.query({windowId: window.id}, function(tabs) {
           const flightTab = tabs.find(tab => tab.url && tab.url.includes('google.com/flights'));
@@ -40,7 +39,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             chrome.scripting.executeScript({
               target: {tabId: flightTab.id},
               func: (from, to) => {
-                // Fonction d'injection pour remplir les champs
+                // 1. Refus automatique des cookies si popup présent
+                function refuseCookies() {
+                  // Recherche par aria-label, id, OU texte exact du bouton
+                  let refuseBtn = document.querySelector('[aria-label*="Refuser tout"], [id*="reject"]');
+                  if (!refuseBtn) {
+                    // Recherche par texte exact (français)
+                    const xpath = "//button[normalize-space(text())='Tout refuser' or normalize-space(text())='Refuser tout']";
+                    const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                    refuseBtn = result.singleNodeValue;
+                  }
+                  if (refuseBtn) {
+                    refuseBtn.click();
+                  }
+                }
+                refuseCookies();
+                // 2. Remplissage des champs (à ajuster selon l'UI Google Flights)
                 function fillInput(selector, value) {
                   const el = document.querySelector(selector);
                   if (el) {
@@ -51,10 +65,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                   }
                 }
-                // Sélecteurs à ajuster selon l'UI Google Flights
                 fillInput('input[placeholder="Départ"]', from);
                 fillInput('input[placeholder="Destination"]', to);
-                // Simule un clic sur le bouton de recherche si besoin
+                // 3. Clic sur le bouton de recherche si besoin
                 const searchBtn = document.querySelector('button[aria-label*="Rechercher"]');
                 if (searchBtn) searchBtn.click();
               },
@@ -62,7 +75,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
           }
         });
-      }, 2000); // délai pour chargement
+      }, 2000);
     });
   }
 });
