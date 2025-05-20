@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "SkyDeal Google Flights Helper",
+  "version": "1.0",
+  "description": "Ajoute une zone pour saisir les destinations et lance Google Flights en navigation privée.",
+  "permissions": ["scripting", "tabs"],
+  "host_permissions": ["https://www.google.com/flights/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
