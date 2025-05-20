@@ -9,10 +9,10 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
   // Formatage de l'URL Google Flights
   const url = `https://www.google.com/flights?hl=fr#flt=${from}.${to}`;
 
-  // Ouvre une nouvelle fenêtre en navigation privée
-  chrome.windows.create({
-    url: url,
-    incognito: true,
-    type: 'popup'
+  // Ouvre une nouvelle fenêtre en navigation privée et transmet les valeurs au background
+  chrome.runtime.sendMessage({
+    action: 'openGoogleFlights',
+    from,
+    to
   });
 });
