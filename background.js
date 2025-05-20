@@ -42,15 +42,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // 1. Refus automatique des cookies si popup présent
                 function refuseCookies() {
                   // Recherche par aria-label, id, OU texte exact du bouton
-                  let refuseBtn = document.querySelector('[aria-label*="Refuser tout"], [id*="reject"]');
+                  let refuseBtn = document.querySelector('[aria-label*="Refuser tout" i], [aria-label*="Tout refuser" i], [id*="reject" i], button[role="button"][jsname][data-mdc-dialog-action="reject"]');
                   if (!refuseBtn) {
-                    // Recherche par texte exact (français)
-                    const xpath = "//button[normalize-space(text())='Tout refuser' or normalize-space(text())='Refuser tout']";
+                    // Recherche par texte exact (français et anglais)
+                    const xpath = "//button[normalize-space(text())='Tout refuser' or normalize-space(text())='Refuser tout' or normalize-space(text())='Reject all' or normalize-space(text())='Reject']";
                     const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
                     refuseBtn = result.singleNodeValue;
                   }
                   if (refuseBtn) {
                     refuseBtn.click();
+                    setTimeout(() => {}, 500); // Laisse le temps à la popup de disparaître
                   }
                 }
                 refuseCookies();

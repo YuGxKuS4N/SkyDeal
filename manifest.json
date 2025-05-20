@@ -4,7 +4,10 @@
   "version": "1.0",
   "description": "Ajoute une zone pour saisir les destinations et lance Google Flights en navigation privée.",
   "permissions": ["scripting", "tabs"],
-  "host_permissions": ["https://www.google.com/flights/*"],
+  "host_permissions": [
+    "https://www.google.com/flights/*",
+    "https://consent.google.com/*"
+  ],
   "action": {
     "default_popup": "popup.html"
   },
