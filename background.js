@@ -87,9 +87,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 input2.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
                 await new Promise(r => setTimeout(r, 90));
               }
-              // Étape 6 : simuler une entrée
-              input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-              input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              // Après la saisie de la destination, on attend puis on simule deux flèches du bas, puis entrée
+              await new Promise(r => setTimeout(r, 300));
+              for (let j = 0; j < 2; j++) {
+                input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+                input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+                await new Promise(r => setTimeout(r, 150));
+              }
+              // On s'arrête ici pour test, pas d'entrée simulée
             })();
           },
           args: [message.from, message.to]
