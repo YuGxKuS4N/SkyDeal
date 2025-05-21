@@ -69,13 +69,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
               console.log('[SkyDeal] Entrée simulée');
               await new Promise(r => setTimeout(r, 200));
-              // TAB pour passer à la case destination
-              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
-              input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
-              await new Promise(r => setTimeout(r, 200));
-              // Écriture de la destination dans l'input actif (comme pour le départ)
+              // Sélectionner la case "Où allez-vous" comme pour la case départ
+              const toSelector = '[aria-label*="Où allez-vous" i], [aria-label*="To" i]';
+              const toBtn = document.querySelector(toSelector);
+              if (!toBtn) { console.log('[SkyDeal] Champ destination introuvable'); return; }
+              toBtn.click();
+              await new Promise(r => setTimeout(r, 400));
+              // Après le clic sur la case destination
               const input2 = document.activeElement;
-              if (!input2 || input2.tagName !== 'INPUT') return;
+              if (!input2 || input2.tagName !== 'INPUT') { console.log('[SkyDeal] Pas d\'input actif pour la destination'); return; }
               input2.value = '';
               input2.dispatchEvent(new Event('input', { bubbles: true }));
               for (let i = 0; i < to.length; i++) {
@@ -87,14 +89,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 input2.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
                 await new Promise(r => setTimeout(r, 90));
               }
-              // Après la saisie de la destination, on attend puis on simule deux flèches du bas, puis entrée
+              console.log('[SkyDeal] Saisie destination terminée');
+              await new Promise(r => setTimeout(r, 200));
+              // Après la saisie de la destination, on attend puis on simule deux flèches du bas
               await new Promise(r => setTimeout(r, 300));
               for (let j = 0; j < 2; j++) {
+                input2.focus();
                 input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
                 input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-                await new Promise(r => setTimeout(r, 150));
+                await new Promise(r => setTimeout(r, 200));
               }
-              // On s'arrête ici pour test, pas d'entrée simulée
+
             })();
           },
           args: [message.from, message.to]
