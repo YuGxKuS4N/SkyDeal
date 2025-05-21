@@ -25,116 +25,83 @@ chrome.windows.onCreated.addListener(function(window) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'openGoogleFlights') {
-    const { from, to } = message;
     chrome.windows.create({
       url: 'https://www.google.com/travel/flights?hl=fr',
       type: 'popup'
     }, (window) => {
       if (!window || !window.id) return;
-      // Attendre que l'onglet Google Flights soit complètement chargé
-      const checkAndSend = (tabId) => {
-        chrome.tabs.get(tabId, (tab) => {
-          if (tab.status === 'complete') {
-            console.log('Injection directe du script de remplissage dans l\'onglet', tabId);
-            chrome.scripting.executeScript({
-              target: {tabId},
-              func: (from, to) => {
-                // Script de remplissage robuste avec surveillance du changement d'URL
-                function fillCity(selector, value, next) {
-                  const el = document.querySelector(selector);
-                  if (el) {
-                    el.scrollIntoView({behavior: 'auto', block: 'center'});
-                    el.click();
-                    setTimeout(() => {
-                      // On tente de cliquer sur le bouton "Effacer" s'il existe
-                      const clearBtn = document.querySelector('[aria-label*="Effacer" i], [aria-label*="Clear" i]');
-                      if (clearBtn) {
-                        clearBtn.click();
-                      }
-                      setTimeout(() => {
-                        const input = document.querySelector('input[aria-label][type="text"]:not([readonly])');
-                        if (input) {
-                          input.focus();
-                          input.value = '';
-                          input.dispatchEvent(new Event('input', { bubbles: true }));
-                          setTimeout(() => {
-                            input.value = value;
-                            input.dispatchEvent(new Event('input', { bubbles: true }));
-                            // Attendre qu'une suggestion apparaisse ou 1,5s max
-                            let waited = 0;
-                            function trySelectSuggestion() {
-                              const suggestion = document.querySelector('[role="listbox"] [role="option"]');
-                              if (suggestion) {
-                                suggestion.click();
-                                setTimeout(next, 500);
-                              } else if (waited < 1500) {
-                                waited += 100;
-                                setTimeout(trySelectSuggestion, 100);
-                              } else {
-                                // Si pas de suggestion, on tente Entrée
-                                const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true });
-                                input.dispatchEvent(enterEvent);
-                                setTimeout(next, 500);
-                              }
-                            }
-                            trySelectSuggestion();
-                          }, 400);
-                        } else {
-                          setTimeout(() => fillCity(selector, value, next), 300);
-                        }
-                      }, 350);
-                    }, 600);
-                  } else {
-                    setTimeout(() => fillCity(selector, value, next), 300);
-                  }
-                }
-
-                // 1. Remplir le champ départ, puis attendre le changement d'URL
-                const fromSelector = '[aria-label*="D\'où partez-vous" i], [aria-label*="From" i]';
-                const toSelector = '[aria-label*="Où allez-vous" i], [aria-label*="To" i]';
-                const initialUrl = location.href;
-
-                fillCity(fromSelector, from, () => {
-                  // Surveiller le changement d'URL (rechargement après sélection du départ)
-                  let tries = 0;
-                  function waitForUrlChange() {
-                    if (location.href !== initialUrl || tries > 30) {
-                      setTimeout(() => {
-                        // Après le changement d'URL, remplir la destination
-                        fillCity(toSelector, to, () => {
-                          const searchBtn = document.querySelector('button[aria-label*="Rechercher"]');
-                          if (searchBtn) searchBtn.click();
-                        });
-                      }, 1200); // attendre un peu que le DOM se stabilise
-                    } else {
-                      tries++;
-                      setTimeout(waitForUrlChange, 200);
-                    }
-                  }
-                  waitForUrlChange();
-                });
-              },
-              args: [from, to]
-            });
-            chrome.tabs.onUpdated.removeListener(listener);
-          }
+      let injected = false;
+      const injectScript = (tabId) => {
+        chrome.scripting.executeScript({
+          target: { tabId },
+          func: (from, to) => {
+            (async () => {
+              console.log('[SkyDeal] Injection unique démarrée');
+              const fromSelector = '[aria-label*="D\'où partez-vous" i], [aria-label*="From" i]';
+              const fromBtn = document.querySelector(fromSelector);
+              if (!fromBtn) { console.log('[SkyDeal] Champ départ introuvable'); return; }
+              fromBtn.click();
+              console.log('[SkyDeal] Champ départ cliqué');
+              await new Promise(r => setTimeout(r, 400));
+              const input = document.activeElement;
+              if (!input || input.tagName !== 'INPUT') { console.log('[SkyDeal] Pas d\'input actif'); return; }
+              input.value = '';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let i = 0; i < from.length; i++) {
+                const char = from[i];
+                const keyCode = char.charCodeAt(0);
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                input.value += char;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                await new Promise(r => setTimeout(r, 90));
+              }
+              console.log('[SkyDeal] Saisie terminée');
+              await new Promise(r => setTimeout(r, 200));
+              for (let j = 0; j < 2; j++) {
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+                await new Promise(r => setTimeout(r, 150));
+              }
+              console.log('[SkyDeal] Flèches terminées');
+              // Étape 4 : simuler une entrée
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              console.log('[SkyDeal] Entrée simulée');
+              await new Promise(r => setTimeout(r, 200));
+              // TAB pour passer à la case destination
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
+              input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
+              await new Promise(r => setTimeout(r, 200));
+              // Écriture de la destination dans l'input actif (comme pour le départ)
+              const input2 = document.activeElement;
+              if (!input2 || input2.tagName !== 'INPUT') return;
+              input2.value = '';
+              input2.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let i = 0; i < to.length; i++) {
+                const char = to[i];
+                const keyCode = char.charCodeAt(0);
+                input2.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                input2.value += char;
+                input2.dispatchEvent(new Event('input', { bubbles: true }));
+                input2.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                await new Promise(r => setTimeout(r, 90));
+              }
+              // Étape 6 : simuler une entrée
+              input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+              input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+            })();
+          },
+          args: [message.from, message.to]
         });
       };
       const listener = (tabId, changeInfo, tab) => {
         if (tab.windowId === window.id && tab.url && tab.url.includes('google.com/travel/flights') && changeInfo.status === 'complete') {
-          checkAndSend(tabId);
+          injectScript(tabId);
+          chrome.tabs.onUpdated.removeListener(listener);
         }
       };
       chrome.tabs.onUpdated.addListener(listener);
-      // Sécurité : si la page est déjà chargée (rare mais possible)
-      setTimeout(() => {
-        chrome.tabs.query({windowId: window.id}, function(tabs) {
-          const flightTab = tabs.find(tab => tab.url && tab.url.includes('google.com/travel/flights'));
-          if (flightTab && flightTab.status === 'complete') {
-            checkAndSend(flightTab.id);
-          }
-        });
-      }, 2500);
     });
   }
 });
