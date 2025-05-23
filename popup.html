@@ -26,6 +26,14 @@
   <input type="text" id="toCity" placeholder="Ville d'arrivée">
   <label for="toCountry">Pays d'arrivée :</label>
   <input type="text" id="toCountry" placeholder="Pays d'arrivée">
+  <label for="departDate">Autour de la date de départ souhaitée :</label>
+  <input type="date" id="departDate">
+  <label for="departFlex">Variabilité (jours autour) :</label>
+  <input type="number" id="departFlex" min="0" max="15" value="3">
+  <label for="returnDate">Autour de la date de retour souhaitée :</label>
+  <input type="date" id="returnDate">
+  <label for="returnFlex">Variabilité (jours autour) :</label>
+  <input type="number" id="returnFlex" min="0" max="15" value="3">
   <button id="searchBtn">Rechercher</button>
   <script src="popup.js"></script>
 </body>

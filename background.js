@@ -35,7 +35,7 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
       const injectScript = (tabId) => {
         chrome.scripting.executeScript({
           target: { tabId },
-          func: (from, to) => {
+          func: (from, to, departDate) => {
             // Fonction utilitaire pour normaliser les chaînes (minuscule, sans accents, sans virgule)
             function normalize(str) {
               return str
@@ -171,9 +171,48 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
                 input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
                 console.log('[SkyDeal] Liste déroulante non trouvée, entrée simulée (destination)');
               }
+              // Après la sélection de la destination (ou validation par entrée), cliquer sur le bouton avec la classe FMXxAd P0TvEc
+              await new Promise(r => setTimeout(r, 400));
+              const nextBtn = document.querySelector('div.FMXxAd.P0TvEc');
+              if (nextBtn) {
+                nextBtn.click();
+                console.log('[SkyDeal] Bouton "FMXxAd P0TvEc" cliqué');
+              } else {
+                console.log('[SkyDeal] Bouton "FMXxAd P0TvEc" non trouvé');
+              }
+              // Ajout : cliquer sur la case flèche retour (bouton LjDxcd XhPA0b LQeN7 Tmm8n)
+              await new Promise(r => setTimeout(r, 400));
+              const retourBtn = document.querySelector('button.LjDxcd.XhPA0b.LQeN7.Tmm8n');
+              if (retourBtn) {
+                retourBtn.click();
+                console.log('[SkyDeal] Bouton "LjDxcd XhPA0b LQeN7 Tmm8n" (flèche retour) cliqué');
+              } else {
+                console.log('[SkyDeal] Bouton "LjDxcd XhPA0b LQeN7 Tmm8n" non trouvé');
+              }
+              // Après le clic sur le bouton "FMXxAd P0TvEc", simule la saisie de la date de l'utilisateur dans le champ actif
+              await new Promise(r => setTimeout(r, 500));
+              if (typeof departDate === 'string' && document.activeElement && document.activeElement.tagName === 'INPUT') {
+                document.activeElement.focus();
+                document.activeElement.value = '';
+                document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+                // Format JJ/MM/AAAA
+                const [yyyy, mm, dd] = departDate.split('-');
+                const userDate = `${dd}/${mm}/${yyyy}`;
+                try {
+                  document.execCommand('insertText', false, userDate);
+                } catch (e) {
+                  document.activeElement.value = userDate;
+                }
+                document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+                document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                document.activeElement.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                console.log('[SkyDeal] Saisie de la date utilisateur simulée dans le champ actif:', userDate);
+              } else {
+                console.log('[SkyDeal] Aucun champ input actif pour saisir la date');
+              }
             })();
           },
-          args: [message.from, message.to]
+          args: [message.from, message.to, message.departDate]
         });
       };
       const listener = (tabId, changeInfo, tab) => {
