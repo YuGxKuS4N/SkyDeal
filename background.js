@@ -23,7 +23,7 @@ chrome.windows.onCreated.addListener(function(window) {
   });
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
   if (message.action === 'openGoogleFlights') {
     chrome.windows.create({
       url: 'https://www.google.com/travel/flights?hl=fr',
@@ -68,6 +68,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
               input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
               console.log('[SkyDeal] Entrée simulée');
+              await new Promise(r => setTimeout(r, 500));
+              // Sélection automatique dans la liste déroulante pour la case départ
+              const listboxFrom = document.querySelector('ul[role="listbox"].DFGgtd');
+              if (listboxFrom) {
+                const itemsFrom = Array.from(listboxFrom.querySelectorAll('li[role="option"]'));
+                const searchTextFrom = from.trim().toLowerCase();
+                let foundFrom = null;
+                for (const item of itemsFrom) {
+                  const label = (item.getAttribute('aria-label') || '').toLowerCase();
+                  const zs = item.querySelector('.zsRT0d');
+                  const zsText = zs ? zs.textContent.trim().toLowerCase() : '';
+                  if (label === searchTextFrom || zsText === searchTextFrom) {
+                    foundFrom = item;
+                    break;
+                  }
+                }
+                if (foundFrom) {
+                  foundFrom.scrollIntoView({behavior: 'auto', block: 'center'});
+                  foundFrom.click();
+                  console.log('[SkyDeal] Élément départ sélectionné automatiquement:', foundFrom.getAttribute('aria-label'));
+                } else {
+                  console.log('[SkyDeal] Aucun élément ne correspond exactement à la saisie départ:', from);
+                }
+              } else {
+                console.log('[SkyDeal] Liste déroulante départ non trouvée');
+              }
               await new Promise(r => setTimeout(r, 200));
               // Sélectionner la case "Où allez-vous" comme pour la case départ
               const toSelector = '[aria-label*="Où allez-vous" i], [aria-label*="To" i]';
@@ -91,15 +117,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               }
               console.log('[SkyDeal] Saisie destination terminée');
               await new Promise(r => setTimeout(r, 200));
-              // Après la saisie de la destination, on attend puis on simule deux flèches du bas
-              await new Promise(r => setTimeout(r, 300));
-              for (let j = 0; j < 2; j++) {
-                input2.focus();
-                input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-                input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-                await new Promise(r => setTimeout(r, 200));
+              // Après la saisie de la destination, on attend puis on sélectionne l'élément correspondant
+              await new Promise(r => setTimeout(r, 500));
+              // Chercher la liste déroulante
+              const listbox = document.querySelector('ul[role="listbox"].DFGgtd');
+              if (listbox) {
+                // On récupère tous les éléments de la liste
+                const items = Array.from(listbox.querySelectorAll('li[role="option"]'));
+                // On cherche l'élément dont le texte correspond à la saisie (insensible à la casse)
+                const searchText = to.trim().toLowerCase();
+                let found = null;
+                for (const item of items) {
+                  // On regarde d'abord aria-label, sinon le texte dans .zsRT0d
+                  const label = (item.getAttribute('aria-label') || '').toLowerCase();
+                  const zs = item.querySelector('.zsRT0d');
+                  const zsText = zs ? zs.textContent.trim().toLowerCase() : '';
+                  if (label === searchText || zsText === searchText) {
+                    found = item;
+                    break;
+                  }
+                }
+                if (found) {
+                  found.scrollIntoView({behavior: 'auto', block: 'center'});
+                  found.click();
+                  console.log('[SkyDeal] Élément sélectionné automatiquement:', found.getAttribute('aria-label'));
+                } else {
+                  console.log('[SkyDeal] Aucun élément ne correspond exactement à la saisie:', to);
+                }
+              } else {
+                console.log('[SkyDeal] Liste déroulante non trouvée');
               }
-
+              // ...existing code...
             })();
           },
           args: [message.from, message.to]

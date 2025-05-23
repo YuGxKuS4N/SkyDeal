@@ -1,15 +1,18 @@
 document.getElementById('searchBtn').addEventListener('click', async () => {
-  const from = document.getElementById('from').value.trim();
-  const to = document.getElementById('to').value.trim();
-  if (!from || !to) {
-    alert('Veuillez remplir les deux champs.');
+  const fromCity = document.getElementById('fromCity').value.trim();
+  const fromCountry = document.getElementById('fromCountry').value.trim();
+  const toCity = document.getElementById('toCity').value.trim();
+  const toCountry = document.getElementById('toCountry').value.trim();
+  if (!fromCity || !fromCountry || !toCity || !toCountry) {
+    alert('Veuillez remplir les quatre champs.');
     return;
   }
 
-  // Formatage de l'URL Google Flights
-  const url = `https://www.google.com/flights?hl=fr#flt=${from}.${to}`;
+  // Concatène ville et pays pour chaque champ
+  const from = `${fromCity}, ${fromCountry}`;
+  const to = `${toCity}, ${toCountry}`;
 
-  // Ouvre une nouvelle fenêtre en navigation privée et transmet les valeurs au background
+  // Ouvre une nouvelle fenêtre et transmet les valeurs au background
   chrome.runtime.sendMessage({
     action: 'openGoogleFlights',
     from,
