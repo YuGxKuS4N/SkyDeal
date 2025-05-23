@@ -38,7 +38,7 @@ SkyDeal est une extension Chrome qui facilite la recherche de vols sur Google Fl
 - Peut nécessiter des ajustements si Google modifie la structure de ses pages.
 
 ## Auteurs
-- Développé par [Votre Nom ou Pseudo]
+- Développé par Rayan MADJID
 
 ---
 Extension open-source, à utiliser à des fins personnelles uniquement.
