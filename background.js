@@ -27,7 +27,8 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
   if (message.action === 'openGoogleFlights') {
     chrome.windows.create({
       url: 'https://www.google.com/travel/flights?hl=fr',
-      type: 'popup'
+      type: 'popup',
+      incognito: true // Ouvre la fenêtre en navigation privée
     }, (window) => {
       if (!window || !window.id) return;
       let injected = false;
@@ -35,6 +36,15 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
         chrome.scripting.executeScript({
           target: { tabId },
           func: (from, to) => {
+            // Fonction utilitaire pour normaliser les chaînes (minuscule, sans accents, sans virgule)
+            function normalize(str) {
+              return str
+                .toLowerCase()
+                .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+                .replace(/[,]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            }
             (async () => {
               console.log('[SkyDeal] Injection unique démarrée');
               const fromSelector = '[aria-label*="D\'où partez-vous" i], [aria-label*="From" i]';
@@ -71,15 +81,18 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
               await new Promise(r => setTimeout(r, 500));
               // Sélection automatique dans la liste déroulante pour la case départ
               const listboxFrom = document.querySelector('ul[role="listbox"].DFGgtd');
+              let foundFrom = null;
               if (listboxFrom) {
                 const itemsFrom = Array.from(listboxFrom.querySelectorAll('li[role="option"]'));
-                const searchTextFrom = from.trim().toLowerCase();
-                let foundFrom = null;
+                const searchTextFrom = normalize(from);
                 for (const item of itemsFrom) {
-                  const label = (item.getAttribute('aria-label') || '').toLowerCase();
+                  const label = (item.getAttribute('aria-label') || '');
                   const zs = item.querySelector('.zsRT0d');
-                  const zsText = zs ? zs.textContent.trim().toLowerCase() : '';
-                  if (label === searchTextFrom || zsText === searchTextFrom) {
+                  const zsText = zs ? zs.textContent : '';
+                  const labelNorm = normalize(label);
+                  const zsTextNorm = normalize(zsText);
+                  const words = searchTextFrom.split(' ');
+                  if (words.every(w => labelNorm.includes(w)) || words.every(w => zsTextNorm.includes(w))) {
                     foundFrom = item;
                     break;
                   }
@@ -89,10 +102,16 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
                   foundFrom.click();
                   console.log('[SkyDeal] Élément départ sélectionné automatiquement:', foundFrom.getAttribute('aria-label'));
                 } else {
-                  console.log('[SkyDeal] Aucun élément ne correspond exactement à la saisie départ:', from);
+                  // Si aucun élément ne correspond, simule une entrée
+                  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  console.log('[SkyDeal] Aucun élément ne correspond, entrée simulée (départ)');
                 }
               } else {
-                console.log('[SkyDeal] Liste déroulante départ non trouvée');
+                // Si la liste n'est pas trouvée, simule une entrée
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                console.log('[SkyDeal] Liste déroulante départ non trouvée, entrée simulée');
               }
               await new Promise(r => setTimeout(r, 200));
               // Sélectionner la case "Où allez-vous" comme pour la case départ
@@ -119,20 +138,19 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
               await new Promise(r => setTimeout(r, 200));
               // Après la saisie de la destination, on attend puis on sélectionne l'élément correspondant
               await new Promise(r => setTimeout(r, 500));
-              // Chercher la liste déroulante
               const listbox = document.querySelector('ul[role="listbox"].DFGgtd');
+              let found = null;
               if (listbox) {
-                // On récupère tous les éléments de la liste
                 const items = Array.from(listbox.querySelectorAll('li[role="option"]'));
-                // On cherche l'élément dont le texte correspond à la saisie (insensible à la casse)
-                const searchText = to.trim().toLowerCase();
-                let found = null;
+                const searchText = normalize(to);
                 for (const item of items) {
-                  // On regarde d'abord aria-label, sinon le texte dans .zsRT0d
-                  const label = (item.getAttribute('aria-label') || '').toLowerCase();
+                  const label = (item.getAttribute('aria-label') || '');
                   const zs = item.querySelector('.zsRT0d');
-                  const zsText = zs ? zs.textContent.trim().toLowerCase() : '';
-                  if (label === searchText || zsText === searchText) {
+                  const zsText = zs ? zs.textContent : '';
+                  const labelNorm2 = normalize(label);
+                  const zsTextNorm2 = normalize(zsText);
+                  const words2 = searchText.split(' ');
+                  if (words2.every(w => labelNorm2.includes(w)) || words2.every(w => zsTextNorm2.includes(w))) {
                     found = item;
                     break;
                   }
@@ -142,12 +160,17 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
                   found.click();
                   console.log('[SkyDeal] Élément sélectionné automatiquement:', found.getAttribute('aria-label'));
                 } else {
-                  console.log('[SkyDeal] Aucun élément ne correspond exactement à la saisie:', to);
+                  // Si aucun élément ne correspond, simule une entrée
+                  input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  console.log('[SkyDeal] Aucun élément ne correspond, entrée simulée (destination)');
                 }
               } else {
-                console.log('[SkyDeal] Liste déroulante non trouvée');
+                // Si la liste n'est pas trouvée, simule une entrée
+                input2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                input2.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                console.log('[SkyDeal] Liste déroulante non trouvée, entrée simulée (destination)');
               }
-              // ...existing code...
             })();
           },
           args: [message.from, message.to]

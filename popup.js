@@ -8,9 +8,9 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
     return;
   }
 
-  // Concatène ville et pays pour chaque champ
-  const from = `${fromCity}, ${fromCountry}`;
-  const to = `${toCity}, ${toCountry}`;
+  // Concatène ville et pays pour chaque champ, séparés par un espace (pas de virgule)
+  const from = `${fromCity} ${fromCountry}`;
+  const to = `${toCity} ${toCountry}`;
 
   // Ouvre une nouvelle fenêtre et transmet les valeurs au background
   chrome.runtime.sendMessage({

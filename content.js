@@ -3,8 +3,7 @@
 
 console.log('[SkyDeal] Content script chargé');
 
-// Partie Google Consent désactivée car la page n'est plus proposée
-/*
+// Partie Google Consent réactivée pour refus automatique des cookies
 if (location.hostname.includes('consent.google.com') || location.pathname.includes('/consent/')) {
   console.log('[SkyDeal] Page de consentement détectée, tentative de refus automatique');
   function refuseCookiesAndWait(callback) {
@@ -26,7 +25,6 @@ if (location.hostname.includes('consent.google.com') || location.pathname.includ
   }
   refuseCookiesAndWait();
 }
-*/
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[SkyDeal] Message reçu dans content.js', message);
