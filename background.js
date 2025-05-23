@@ -180,7 +180,7 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
               } else {
                 console.log('[SkyDeal] Bouton "FMXxAd P0TvEc" non trouvé');
               }
-              // Ajout : cliquer sur la case flèche retour (bouton LjDxcd XhPA0b LQeN7 Tmm8n)
+              // Ajout: cliquer sur la case flèche retour (bouton LjDxcd XhPA0b LQeN7 Tmm8n)
               await new Promise(r => setTimeout(r, 400));
               const retourBtn = document.querySelector('button.LjDxcd.XhPA0b.LQeN7.Tmm8n');
               if (retourBtn) {
