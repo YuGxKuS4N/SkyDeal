@@ -35,7 +35,7 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
       const injectScript = (tabId) => {
         chrome.scripting.executeScript({
           target: { tabId },
-          func: (from, to, departDate) => {
+          func: (from, to, departDate, returnDate, departFlex = 3) => {
             // Fonction utilitaire pour normaliser les chaînes (minuscule, sans accents, sans virgule)
             function normalize(str) {
               return str
@@ -44,6 +44,18 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
                 .replace(/[,]/g, '')
                 .replace(/\s+/g, ' ')
                 .trim();
+            }
+            // Fonction pour parser une date yyyy-mm-dd en objet Date
+            function parseDate(str) {
+              const [yyyy, mm, dd] = str.split('-');
+              return new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+            }
+            // Fonction pour formater une date en yyyy-mm-dd
+            function formatDate(date) {
+              const yyyy = date.getFullYear();
+              const mm = String(date.getMonth() + 1).padStart(2, '0');
+              const dd = String(date.getDate()).padStart(2, '0');
+              return `${yyyy}-${mm}-${dd}`;
             }
             (async () => {
               console.log('[SkyDeal] Injection unique démarrée');
@@ -180,39 +192,167 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
               } else {
                 console.log('[SkyDeal] Bouton "FMXxAd P0TvEc" non trouvé');
               }
-              // Ajout: cliquer sur la case flèche retour (bouton LjDxcd XhPA0b LQeN7 Tmm8n)
-              await new Promise(r => setTimeout(r, 400));
-              const retourBtn = document.querySelector('button.LjDxcd.XhPA0b.LQeN7.Tmm8n');
-              if (retourBtn) {
-                retourBtn.click();
-                console.log('[SkyDeal] Bouton "LjDxcd XhPA0b LQeN7 Tmm8n" (flèche retour) cliqué');
-              } else {
-                console.log('[SkyDeal] Bouton "LjDxcd XhPA0b LQeN7 Tmm8n" non trouvé');
-              }
-              // Après le clic sur le bouton "FMXxAd P0TvEc", simule la saisie de la date de l'utilisateur dans le champ actif
+              // Saisie de la date ALLÉE juste après le bouton (champ actif = input date allée)
               await new Promise(r => setTimeout(r, 500));
-              if (typeof departDate === 'string' && document.activeElement && document.activeElement.tagName === 'INPUT') {
-                document.activeElement.focus();
-                document.activeElement.value = '';
-                document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-                // Format JJ/MM/AAAA
-                const [yyyy, mm, dd] = departDate.split('-');
-                const userDate = `${dd}/${mm}/${yyyy}`;
-                try {
-                  document.execCommand('insertText', false, userDate);
-                } catch (e) {
-                  document.activeElement.value = userDate;
-                }
-                document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-                document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-                document.activeElement.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-                console.log('[SkyDeal] Saisie de la date utilisateur simulée dans le champ actif:', userDate);
-              } else {
-                console.log('[SkyDeal] Aucun champ input actif pour saisir la date');
+              // Ouvre le calendrier si besoin
+              let allerInput = document.activeElement;
+              if (!allerInput || allerInput.tagName !== 'INPUT') {
+                allerInput = document.querySelector('input[aria-label="Aller"]') || document.querySelector('input[aria-label*="aller" i]');
+                if (allerInput) allerInput.focus();
               }
+              // Nouvelle logique : sélectionner le meilleur prix dans l'intervalle
+              if (typeof departDate === 'string' && allerInput && allerInput.tagName === 'INPUT') {
+                const userDate = parseDate(departDate);
+                await new Promise(r => setTimeout(r, 700));
+                // Sélectionne toutes les cases de date avec un prix
+                const dateCells = Array.from(document.querySelectorAll('div[data-iso]'));
+                let bestCell = null;
+                let bestPrice = Infinity;
+                let bestDate = null;
+                for (const cell of dateCells) {
+                  const cellDateStr = cell.getAttribute('data-iso');
+                  if (!cellDateStr) continue;
+                  const cellDate = parseDate(cellDateStr);
+                  const diff = Math.abs((cellDate - userDate) / (1000*60*60*24));
+                  if (diff > departFlex) continue;
+                  // Cherche le prix dans le div enfant jsname="qCDwBb"
+                  let price = Infinity;
+                  const priceEl = cell.querySelector('div[jsname="qCDwBb"]');
+                  if (priceEl) {
+                    const priceText = priceEl.textContent.replace(/[^0-9]/g, '');
+                    if (priceText) price = parseInt(priceText, 10);
+                  }
+                  if (price < bestPrice) {
+                    bestPrice = price;
+                    bestCell = cell;
+                    bestDate = cellDateStr;
+                  }
+                }
+                if (bestCell) {
+                  bestCell.scrollIntoView({behavior: 'auto', block: 'center'});
+                  if (allerInput) allerInput.blur();
+                  await new Promise(r => setTimeout(r, 150));
+                  const rect = bestCell.getBoundingClientRect();
+                  const opts = {bubbles: true, cancelable: true, view: window, clientX: rect.left + 5, clientY: rect.top + 5};
+                  bestCell.dispatchEvent(new MouseEvent('mousedown', opts));
+                  bestCell.dispatchEvent(new MouseEvent('mouseup', opts));
+                  bestCell.dispatchEvent(new MouseEvent('click', opts));
+                  await new Promise(r => setTimeout(r, 300));
+                  // Deuxième clic pour valider
+                  bestCell.dispatchEvent(new MouseEvent('mousedown', opts));
+                  bestCell.dispatchEvent(new MouseEvent('mouseup', opts));
+                  bestCell.dispatchEvent(new MouseEvent('click', opts));
+                  console.log('[SkyDeal] Meilleur prix trouvé pour l\'allée:', bestPrice, 'le', bestDate, '(double clic)');
+                  await new Promise(r => setTimeout(r, 700));
+                } else {
+                  // Fallback : saisie lettre par lettre comme avant
+                  const [yyyy, mm, dd] = departDate.split('-');
+                  const userDateStr = `${dd}/${mm}/${yyyy}`;
+                  for (let i = 0; i < userDateStr.length; i++) {
+                    const char = userDateStr[i];
+                    const keyCode = char.charCodeAt(0);
+                    allerInput.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                    allerInput.setRangeText(char, allerInput.selectionStart, allerInput.selectionEnd, 'end');
+                    allerInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    allerInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                    await new Promise(r => setTimeout(r, 60));
+                  }
+                  allerInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  allerInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  console.log('[SkyDeal] Aucun meilleur prix trouvé, saisie manuelle.');
+                }
+                await new Promise(r => setTimeout(r, 700));
+              }
+              // Après validation, forcer la détection du champ retour (même si pas actif)
+            
+              let retourInput = document.querySelector('input[aria-label="Retour"]') || document.querySelector('input[aria-label*="retour" i]');
+              if (!retourInput || retourInput.tagName !== 'INPUT') {
+                retourInput = document.activeElement;
+              }
+              if (typeof returnDate === 'string' && retourInput && retourInput.tagName === 'INPUT') {
+                retourInput.focus();
+                const [yyyy, mm, dd] = returnDate.split('-');
+                const userDate = `${dd}/${mm}/${yyyy}`;
+                for (let i = 0; i < userDate.length; i++) {
+                  const char = userDate[i];
+                  const keyCode = char.charCodeAt(0);
+                  retourInput.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                  retourInput.setRangeText(char, retourInput.selectionStart, retourInput.selectionEnd, 'end');
+                  retourInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  retourInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                  await new Promise(r => setTimeout(r, 60));
+                }
+                // Entrée pour valider la date retour
+                retourInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                retourInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                console.log('[SkyDeal] Saisie de la date RETOUR simulée lettre par lettre dans le champ retour:', userDate);
+              } else {
+                console.log('[SkyDeal] Champ input "Retour" non trouvé ou non actif');
+              }
+              // Sélection automatique du meilleur prix pour la date RETOUR
+              if (typeof returnDate === 'string' && retourInput && retourInput.tagName === 'INPUT') {
+                retourInput.focus();
+                const userDate = parseDate(returnDate);
+                await new Promise(r => setTimeout(r, 700));
+                const dateCells = Array.from(document.querySelectorAll('div[data-iso]'));
+                let bestCell = null;
+                let bestPrice = Infinity;
+                let bestDate = null;
+                for (const cell of dateCells) {
+                  const cellDateStr = cell.getAttribute('data-iso');
+                  if (!cellDateStr) continue;
+                  const cellDate = parseDate(cellDateStr);
+                  const diff = Math.abs((cellDate - userDate) / (1000*60*60*24));
+                  if (diff > departFlex) continue;
+                  let price = Infinity;
+                  const priceEl = cell.querySelector('div[jsname="qCDwBb"]');
+                  if (priceEl) {
+                    const priceText = priceEl.textContent.replace(/[^0-9]/g, '');
+                    if (priceText) price = parseInt(priceText, 10);
+                  }
+                  if (price < bestPrice) {
+                    bestPrice = price;
+                    bestCell = cell;
+                    bestDate = cellDateStr;
+                  }
+                }
+                if (bestCell) {
+                  bestCell.scrollIntoView({behavior: 'auto', block: 'center'});
+                  if (retourInput) retourInput.blur();
+                  await new Promise(r => setTimeout(r, 150));
+                  const rect = bestCell.getBoundingClientRect();
+                  const opts = {bubbles: true, cancelable: true, view: window, clientX: rect.left + 5, clientY: rect.top + 5};
+                  bestCell.dispatchEvent(new MouseEvent('mousedown', opts));
+                  bestCell.dispatchEvent(new MouseEvent('mouseup', opts));
+                  bestCell.dispatchEvent(new MouseEvent('click', opts));
+                  await new Promise(r => setTimeout(r, 300));
+                  bestCell.dispatchEvent(new MouseEvent('mousedown', opts));
+                  bestCell.dispatchEvent(new MouseEvent('mouseup', opts));
+                  bestCell.dispatchEvent(new MouseEvent('click', opts));
+                  console.log('[SkyDeal] Meilleur prix trouvé pour le RETOUR:', bestPrice, 'le', bestDate, '(double clic)');
+                  await new Promise(r => setTimeout(r, 700));
+                } else {
+                  // Fallback : saisie lettre par lettre comme avant
+                  const [yyyy, mm, dd] = returnDate.split('-');
+                  const userDateStr = `${dd}/${mm}/${yyyy}`;
+                  for (let i = 0; i < userDateStr.length; i++) {
+                    const char = userDateStr[i];
+                    const keyCode = char.charCodeAt(0);
+                    retourInput.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                    retourInput.setRangeText(char, retourInput.selectionStart, retourInput.selectionEnd, 'end');
+                    retourInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    retourInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: 'Key' + char.toUpperCase(), keyCode, which: keyCode, bubbles: true }));
+                    await new Promise(r => setTimeout(r, 60));
+                  }
+                  retourInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  retourInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                  console.log('[SkyDeal] Aucun meilleur prix trouvé, saisie manuelle (retour).');
+                }
+              }
+          
             })();
           },
-          args: [message.from, message.to, message.departDate]
+          args: [message.from, message.to, message.departDate, message.returnDate]
         });
       };
       const listener = (tabId, changeInfo, tab) => {
